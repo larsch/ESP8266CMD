@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright 2018 Lars Christensen
+
 #include "ESP8266CMD.h"
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
@@ -26,7 +29,8 @@ static const char *getWifiStatus(wl_status_t status) {
   }
 }
 
-template<typename TYP> void dumpInfo(Stream* stream, const char* field, const TYP &val) {
+template<typename TYP> void dumpInfo(Stream* stream, const char* field, const TYP &val)
+{
   stream->print(field);
   stream->print(": ");
   stream->println(val);
@@ -50,15 +54,11 @@ static void dumpSystemInfo(Stream* stream)
   dumpInfo(stream, "Cycle count", ESP.getCycleCount());
 }
 
-static void dumpWifiInfo(Stream* stream)
+static void dumpStationInfo(Stream* stream)
 {
   dumpInfo(stream, "Is connected", WiFi.isConnected());
   dumpInfo(stream, "Auto connect", WiFi.getAutoConnect());
-  uint8_t mac[6];
-  WiFi.macAddress(mac);
-  char macStr[18];
-  sprintf(macStr, "%02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-  dumpInfo(stream, "MAC address", macStr);
+  dumpInfo(stream, "MAC address", WiFi.macAddress());
   dumpInfo(stream, "Status", WiFi.status());
   dumpInfo(stream, "Status text", getWifiStatus(WiFi.status()));
   if (WiFi.status() == WL_CONNECTED) {
@@ -71,9 +71,59 @@ static void dumpWifiInfo(Stream* stream)
     dumpInfo(stream, "RSSI", WiFi.RSSI());
   }
   dumpInfo(stream, "Hostname", WiFi.hostname());
-  dumpInfo(stream, "SSDI", WiFi.SSID());
+  dumpInfo(stream, "SSID", WiFi.SSID());
   dumpInfo(stream, "PSK", WiFi.psk());
 }
+
+static void dumpAccessPointInfo(Stream* stream)
+{
+  dumpInfo(stream, "Station count", WiFi.softAPgetStationNum());
+  dumpInfo(stream, "AP IP", WiFi.softAPIP());
+  dumpInfo(stream, "AP MAC", WiFi.softAPmacAddress());
+}
+
+static Stream* scanResponseStream = nullptr;
+
+void printScanResponse(int networksFound)
+{
+  Stream* stream = scanResponseStream;
+  stream->printf("%d network(s) found\n", networksFound);
+  for (int i = 0; i < networksFound; i++)
+  {
+    stream->printf("%d: %s, Ch:%d (%ddBm) %s\n", i + 1, WiFi.SSID(i).c_str(), WiFi.channel(i), WiFi.RSSI(i), WiFi.encryptionType(i) == ENC_TYPE_NONE ? "open" : "");
+  }
+  scanResponseStream = nullptr;
+}
+
+static void scan(Stream* stream)
+{
+  if (scanResponseStream)
+    return;
+  scanResponseStream = stream;
+  WiFi.scanNetworksAsync(printScanResponse);
+}
+
+static void showHelp(Stream* stream, int argc, const char* argv[])
+{
+  stream->print("Commands: ");
+}
+
+struct Command {
+  const char* cmd;
+  void (*handler)(Stream* stream, int argc, const char *argv[]);
+  Command* next;
+};
+
+Command cmds[] = {
+  { "help", showHelp, &cmds[1] },
+  { "sysinfo", showSystemInformatin, &cmds[2] },
+  { "stainfo", dumpStationInfo, &cmds[3] },
+  { "apinfo", dumpAccessPointInfo, &cmds[4] },
+  { "restart", restart, &cmds[5] },
+  { "connect", connect, &cmds[6] },
+  { "disconnect", disconnect, &cmds[7] },
+  { "scan", scan, NULL },
+};
 
 static void handleCommand(Stream* stream, int argc, const char *argv[])
 {
@@ -83,11 +133,13 @@ static void handleCommand(Stream* stream, int argc, const char *argv[])
   }
 
   if (strcmp(argv[0], "help") == 0) {
-    stream->println("Commands: help,sysinfo,wifiinfo,restart,connect,disconnect");
+    stream->println("Cmds: help,sysinfo,wifiinfo,restart,connect,disconnect,reconnect");
   } else if (strcmp(argv[0], "sysinfo") == 0) {
     dumpSystemInfo(stream);
-  } else if (strcmp(argv[0], "wifiinfo") == 0) {
-    dumpWifiInfo(stream);
+  } else if (strcmp(argv[0], "stainfo") == 0) {
+    dumpStationInfo(stream);
+  } else if (strcmp(argv[0], "apinfo") == 0) {
+    dumpAccessPointInfo(stream);
   } else if (strcmp(argv[0], "restart") == 0) {
     stream->println("OK");
     ESP.restart();
@@ -107,6 +159,8 @@ static void handleCommand(Stream* stream, int argc, const char *argv[])
   } else if (strcmp(argv[0], "reconnect") == 0) {
     WiFi.reconnect();
     stream->println("OK");
+  } else if (strcmp(argv[0], "scan") == 0) {
+    scan(stream);
   } else {
     stream->println("Unknown command");
     stream->println(argv[0]);
@@ -130,8 +184,14 @@ static void parseCommand(Stream* stream, char* command)
 
 ESP8266CMD::ESP8266CMD()
   : buffer(new char[COMMAND_LENGTH]),
-    length(0)
+    length(0),
+    commands(cmds)
 {
+}
+
+ESP8266CMD::~ESP8266CMD()
+{
+  delete[] buffer;
 }
 
 void ESP8266CMD::begin(Stream& stream)
