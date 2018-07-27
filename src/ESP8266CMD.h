@@ -20,15 +20,8 @@ private:
   Stream* stream;
   struct Command* commands;
 
-  void help(Stream* stream, int argc, const char* argv[]);
-  void sysinfo(Stream* stream, int argc, const char* argv[]);
-  void stainfo(Stream* stream, int argc, const char* argv[]);
-  void apinfo(Stream* stream, int argc, const char* argv[]);
-  void restart(Stream* stream, int argc, const char* argv[]);
-  void connect(Stream* stream, int argc, const char* argv[]);
-  void reconnect(Stream* stream, int argc, const char* argv[]);
-  void disconnect(Stream* stream, int argc, const char* argv[]);
-  void scan(Stream* stream, int argc, const char* argv[]);
+  void parseCommand(char* command);
+  void handleCommand(int argc, const char *argv[]);
 };
 
 #endif // _ESP8266CMD_h

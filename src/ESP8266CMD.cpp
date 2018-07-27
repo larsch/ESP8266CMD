@@ -36,7 +36,42 @@ template<typename TYP> void dumpInfo(Stream* stream, const char* field, const TY
   stream->println(val);
 }
 
-static void dumpSystemInfo(Stream* stream)
+static Stream* scanResponseStream = nullptr;
+
+void printScanResponse(int networksFound)
+{
+  Stream* stream = scanResponseStream;
+  stream->printf("%d network(s) found\n", networksFound);
+  for (int i = 0; i < networksFound; i++)
+  {
+    stream->printf("%d: %s, Ch:%d (%ddBm) %s\n", i + 1, WiFi.SSID(i).c_str(), WiFi.channel(i), WiFi.RSSI(i), WiFi.encryptionType(i) == ENC_TYPE_NONE ? "open" : "");
+  }
+  scanResponseStream = nullptr;
+}
+
+struct Command {
+  const char* cmd;
+  void (*handler)(Stream* stream, int argc, const char *argv[]);
+  Command* next;
+};
+
+static Command* currentCommands = nullptr;
+
+static void help(Stream* stream, int argc, const char* argv[])
+{
+  stream->print("Commands: ");
+  Command* cmd = currentCommands;
+  stream->print(cmd->cmd);
+  cmd = cmd->next;
+  while (cmd) {
+    stream->print(',');
+    stream->print(cmd->cmd);
+    cmd = cmd->next;
+  }
+  stream->println("");
+}
+
+static void sysinfo(Stream* stream, int argc, const char* argv[])
 {
   dumpInfo(stream, "Chip ID", ESP.getChipId());
   dumpInfo(stream, "Reset reason", ESP.getResetReason());
@@ -54,7 +89,7 @@ static void dumpSystemInfo(Stream* stream)
   dumpInfo(stream, "Cycle count", ESP.getCycleCount());
 }
 
-static void dumpStationInfo(Stream* stream)
+static void stainfo(Stream* stream, int argc, const char* argv[])
 {
   dumpInfo(stream, "Is connected", WiFi.isConnected());
   dumpInfo(stream, "Auto connect", WiFi.getAutoConnect());
@@ -75,27 +110,42 @@ static void dumpStationInfo(Stream* stream)
   dumpInfo(stream, "PSK", WiFi.psk());
 }
 
-static void dumpAccessPointInfo(Stream* stream)
+static void apinfo(Stream* stream, int argc, const char* argv[])
 {
   dumpInfo(stream, "Station count", WiFi.softAPgetStationNum());
   dumpInfo(stream, "AP IP", WiFi.softAPIP());
   dumpInfo(stream, "AP MAC", WiFi.softAPmacAddress());
 }
 
-static Stream* scanResponseStream = nullptr;
-
-void printScanResponse(int networksFound)
+static void restart(Stream* stream, int argc, const char* argv[])
 {
-  Stream* stream = scanResponseStream;
-  stream->printf("%d network(s) found\n", networksFound);
-  for (int i = 0; i < networksFound; i++)
-  {
-    stream->printf("%d: %s, Ch:%d (%ddBm) %s\n", i + 1, WiFi.SSID(i).c_str(), WiFi.channel(i), WiFi.RSSI(i), WiFi.encryptionType(i) == ENC_TYPE_NONE ? "open" : "");
-  }
-  scanResponseStream = nullptr;
+  ESP.restart();
 }
 
-static void scan(Stream* stream)
+static void connect(Stream* stream, int argc, const char* argv[])
+{
+  if (argc == 2) {
+    WiFi.begin(argv[1]);
+    stream->println("OK");
+  } else if (argc == 3) {
+    WiFi.begin(argv[1], argv[2]);
+    stream->println("OK");
+  } else {
+    stream->println("Usage: connect <ssid> [password]");
+  }
+}
+
+static void reconnect(Stream* stream, int argc, const char* argv[])
+{
+  WiFi.reconnect();
+}
+
+static void disconnect(Stream* stream, int argc, const char* argv[])
+{
+  WiFi.disconnect();
+}
+
+static void scan(Stream* stream, int argc, const char* argv[])
 {
   if (scanResponseStream)
     return;
@@ -103,84 +153,67 @@ static void scan(Stream* stream)
   WiFi.scanNetworksAsync(printScanResponse);
 }
 
-static void showHelp(Stream* stream, int argc, const char* argv[])
+static void diag(Stream* stream, int argc, const char* argv[])
 {
-  stream->print("Commands: ");
+  WiFi.printDiag(*stream);
 }
 
-struct Command {
-  const char* cmd;
-  void (*handler)(Stream* stream, int argc, const char *argv[]);
-  Command* next;
-};
+static void debug(Stream* stream, int argc, const char* argv[])
+{
+  if (argc == 2)
+    Serial.setDebugOutput((bool)String(argv[1]).toInt());
+  else
+    stream->println("Usage: debug 0|1");
+}
+
+static void hostname(Stream* stream, int argc, const char* argv[])
+{
+  if (argc == 2)
+    WiFi.hostname(argv[1]);
+  else {
+    stream->print("Hostname: ");
+    stream->println(WiFi.hostname());
+  }
+}
+
+static void uptime(Stream* stream, int argc, const char* argv[])
+{
+  uint32_t seconds = millis() / 1000;
+  uint32_t days = seconds / 86400; seconds = seconds % 86400;
+  uint32_t hours = seconds / 3600; seconds = seconds % 3600;
+  uint32_t minutes = seconds / 60; seconds = seconds % 60;
+  Serial.print("Uptime: ");
+  if (days) {
+    Serial.print(days);
+    Serial.print('d');
+  }
+  if (days||hours) {
+    Serial.print(hours);
+    Serial.print('h');
+  }
+  if (days||hours||minutes) {
+    Serial.print(minutes);
+    Serial.print('m');
+  }
+  Serial.print(seconds);
+  Serial.println('s');
+}
 
 Command cmds[] = {
-  { "help", showHelp, &cmds[1] },
-  { "sysinfo", showSystemInformatin, &cmds[2] },
-  { "stainfo", dumpStationInfo, &cmds[3] },
-  { "apinfo", dumpAccessPointInfo, &cmds[4] },
+  { "help", help, &cmds[1] },
+  { "sysinfo", sysinfo, &cmds[2] },
+  { "stainfo", stainfo, &cmds[3] },
+  { "apinfo", apinfo, &cmds[4] },
   { "restart", restart, &cmds[5] },
   { "connect", connect, &cmds[6] },
   { "disconnect", disconnect, &cmds[7] },
-  { "scan", scan, NULL },
+  { "reconnect", reconnect, &cmds[8] },
+  { "diag", diag, &cmds[9] },
+  { "debug", debug, &cmds[10] },
+  { "hostname", hostname, &cmds[11] },
+  { "uptime", uptime, &cmds[12] },
+  { "scan", scan, nullptr },
 };
-
-static void handleCommand(Stream* stream, int argc, const char *argv[])
-{
-  if (argc == 0) {
-    stream->print("No command given");
-    return;
-  }
-
-  if (strcmp(argv[0], "help") == 0) {
-    stream->println("Cmds: help,sysinfo,wifiinfo,restart,connect,disconnect,reconnect");
-  } else if (strcmp(argv[0], "sysinfo") == 0) {
-    dumpSystemInfo(stream);
-  } else if (strcmp(argv[0], "stainfo") == 0) {
-    dumpStationInfo(stream);
-  } else if (strcmp(argv[0], "apinfo") == 0) {
-    dumpAccessPointInfo(stream);
-  } else if (strcmp(argv[0], "restart") == 0) {
-    stream->println("OK");
-    ESP.restart();
-  } else if (strcmp(argv[0], "connect") == 0) {
-    if (argc == 2) {
-      WiFi.begin(argv[1]);
-      stream->println("OK");
-    } else if (argc == 3) {
-      WiFi.begin(argv[1], argv[2]);
-      stream->println("OK");
-    } else {
-      stream->println("Usage: connect <ssid> [password]");
-    }
-  } else if (strcmp(argv[0], "disconnect") == 0) {
-    WiFi.disconnect();
-    stream->println("OK");
-  } else if (strcmp(argv[0], "reconnect") == 0) {
-    WiFi.reconnect();
-    stream->println("OK");
-  } else if (strcmp(argv[0], "scan") == 0) {
-    scan(stream);
-  } else {
-    stream->println("Unknown command");
-    stream->println(argv[0]);
-  }
-}
-
-static void parseCommand(Stream* stream, char* command)
-{
-  const char* argv[MAX_ARGV];
-  int argi = 0;
-  while (*command && argi < MAX_ARGV) {
-    while (*command == ' ')
-      *command++ = 0;
-    if (*command)
-      argv[argi++] = command;
-    while (*command && *command != ' ')
-      command++; /* skip word */
-  }
-  handleCommand(stream, argi, argv);
-}
 
 ESP8266CMD::ESP8266CMD()
   : buffer(new char[COMMAND_LENGTH]),
@@ -206,10 +239,47 @@ void ESP8266CMD::run()
     if (byte == '\n' || byte == '\r') {
       buffer[length] = 0;
       if (length > 0)
-        parseCommand(stream, buffer);
+        parseCommand(buffer);
       length = 0;
     } else if (length + 1 < COMMAND_LENGTH) {
       buffer[length++] = byte;
     }
   }
+}
+
+void ESP8266CMD::parseCommand(char* command)
+{
+  const char* argv[MAX_ARGV];
+  int argi = 0;
+  while (*command && argi < MAX_ARGV) {
+    while (*command == ' ')
+      *command++ = 0;
+    if (*command)
+      argv[argi++] = command;
+    while (*command && *command != ' ')
+      command++; /* skip word */
+  }
+  handleCommand(argi, argv);
+}
+
+void ESP8266CMD::handleCommand(int argc, const char *argv[])
+{
+  if (argc == 0) {
+    stream->print("No command given");
+    return;
+  }
+
+  Command* cmd = commands;
+  while (cmd) {
+    if (strcmp(cmd->cmd, argv[0]) == 0) {
+      currentCommands = commands;
+      cmd->handler(stream, argc, argv);
+      stream->println("OK");
+      return;
+    }
+    cmd = cmd->next;
+  }
+
+  stream->print("Unknown command: ");
+  stream->println(argv[0]);
 }
