@@ -1,6 +1,6 @@
 # ESP8266CMD #
 
-**ESP8266CMD** is a library for the [ESP8266 Core for Arduino](https://github.com/esp8266/Arduino) to handle simple commands via Serial port (or other [Stream](https://www.arduino.cc/reference/en/language/functions/communication/stream/) to inspect and configure the ESP. It is very useful when learning the ESP8266 and for configuring the WiFi credentials without having to put it in the source code. The ESP stores the SSID and password persistently.
+**ESP8266CMD** is a library for the [ESP8266 Core for Arduino](https://github.com/esp8266/Arduino) to handle simple commands via Serial port (or other [Stream](https://www.arduino.cc/reference/en/language/functions/communication/stream/) based interface). It can be used to inspect and configure the ESP. It is very useful when learning the ESP8266 and for configuring the WiFi credentials without having to put it in the source code. The ESP stores the SSID and password persistently.
 
 ## Usage ##
 
