@@ -29,12 +29,9 @@ static const char *getWifiStatus(wl_status_t status) {
   }
 }
 
-template<typename TYP> void dumpInfo(Stream* stream, const char* field, const TYP &val)
-{
-  stream->print(field);
-  stream->print(": ");
+#define dumpInfo(stream, field, val) \
+  stream->print(field ": ");         \
   stream->println(val);
-}
 
 static Stream* scanResponseStream = nullptr;
 
@@ -51,7 +48,7 @@ void printScanResponse(int networksFound)
 
 struct Command {
   const char* cmd;
-  void (*handler)(Stream* stream, int argc, const char *argv[]);
+  handler_t handler;
   Command* next;
 };
 
@@ -224,6 +221,11 @@ ESP8266CMD::ESP8266CMD()
 
 ESP8266CMD::~ESP8266CMD()
 {
+  while (commands != cmds) {
+    Command* next = commands->next;
+    delete commands;
+    commands = next;
+  }
   delete[] buffer;
 }
 
@@ -282,4 +284,10 @@ void ESP8266CMD::handleCommand(int argc, const char *argv[])
 
   stream->print("Unknown command: ");
   stream->println(argv[0]);
+}
+
+void ESP8266CMD::addCommand(const char* command, handler_t handler)
+{
+  Command* cmd = new Command{command, handler, commands};
+  commands = cmd;
 }

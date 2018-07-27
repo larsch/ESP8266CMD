@@ -6,11 +6,14 @@
 
 #include <Arduino.h>
 
+typedef void (*handler_t)(Stream* stream, int argc, const char *argv[]);
+
 class ESP8266CMD
 {
 public:
   ESP8266CMD();
   ~ESP8266CMD();
+  void addCommand(const char* command, handler_t handler);
   void begin(Stream& stream = Serial);
   void run();
   

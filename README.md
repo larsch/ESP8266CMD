@@ -1,8 +1,10 @@
 # ESP8266CMD #
 
-Library for the [ESP8266 Core for Arduino](https://github.com/esp8266/Arduino) to handle simple commands via Serial port (or other [Stream](https://www.arduino.cc/reference/en/language/functions/communication/stream/) to inspect and configure the ESP.
+**ESP8266CMD** is a library for the [ESP8266 Core for Arduino](https://github.com/esp8266/Arduino) to handle simple commands via Serial port (or other [Stream](https://www.arduino.cc/reference/en/language/functions/communication/stream/) to inspect and configure the ESP. It is very useful when learning the ESP8266 and for configuring the WiFi credentials without having to put it in the source code. The ESP stores the SSID and password persistently.
 
 ## Usage ##
+
+### Basics ###
 
 To enable the command handler on the default hardware serial point, simply create an instance of the `ESP8266CMD` class, call `begin()` and `run()` as often as you can:
 
@@ -40,9 +42,9 @@ These commands are available:
 * `debug 0|1` - disable/enable debug output
 * `hostname [hostname]` - get/set hostname
 * `uptime` - print uptime
-* `scan` - scan & print avaiable access points
+* `scan` - scan & print available access points
 
-## Other interfaces ##
+### Other interfaces ###
 
 **ESP8266CMD** can work via any `Stream` interface, e.g. connection via WiFi:
 
@@ -73,3 +75,34 @@ $ nc <ip-address> 23
 ```
 
 Be aware that there is no password protection.
+
+### Custom commands ###
+
+You can easily add custom commands:
+
+``` c++
+void greet(Stream* stream, int argc, const char* argv[])
+{
+  if (argc == 2) {
+    stream->print("Hello, ");
+    stream->print(argv[1]);
+    stream->println("!");
+  } else {
+    stream->println("Please tell me who to greet!");
+  }
+}
+
+void setup()
+{
+  cmd.addCommand("greet", greet);
+  cmd.begin();
+}
+```
+
+## Author ##
+
+  * Lars Christensen <larsch@belunktum.dk>
+
+## License ##
+
+This project is licensed under the MIT License - see the LICENSE.md file for details
