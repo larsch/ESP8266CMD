@@ -233,22 +233,22 @@ static void uptime(Stream* stream, int argc, const char* argv[])
   Serial.println('s');
 }
 
-Command cmds[] = {
+static Command cmds[] = {
   { "help", help, &cmds[1] },
-  { "sysinfo", sysinfo, &cmds[2] },
-  { "stainfo", stainfo, &cmds[3] },
-  { "apinfo", apinfo, &cmds[4] },
+  { "hostname", hostname, &cmds[2] },
+  { "uptime", uptime, &cmds[3] },
+  { "sysinfo", sysinfo, &cmds[4] },
   { "restart", restart, &cmds[5] },
-  { "connect", connect, &cmds[6] },
-  { "disconnect", disconnect, &cmds[7] },
-  { "reconnect", reconnect, &cmds[8] },
-  { "diag", diag, &cmds[9] },
-  { "debug", debug, &cmds[10] },
-  { "hostname", hostname, &cmds[11] },
-  { "uptime", uptime, &cmds[12] },
-  { "scan", scan, &cmds[13], },
-  { "ap", ap, &cmds[14] },
-  { "apdisconnect", apdisconnect, nullptr }
+  { "scan", scan, &cmds[6] },
+  { "stainfo", stainfo, &cmds[7] },
+  { "connect", connect, &cmds[8] },
+  { "disconnect", disconnect, &cmds[9] },
+  { "reconnect", reconnect, &cmds[10] },
+  { "ap", ap, &cmds[11] },
+  { "apinfo", apinfo, &cmds[12] },
+  { "apdisconnect", apdisconnect, &cmds[13] },
+  { "diag", diag, &cmds[14] },
+  { "debug", debug, nullptr }
 };
 
 ESP8266CMD::ESP8266CMD()
