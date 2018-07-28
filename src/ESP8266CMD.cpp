@@ -4,6 +4,7 @@
 #include "ESP8266CMD.h"
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
+#include <user_interface.h>
 
 #define MAX_ARGV 16
 #define COMMAND_LENGTH 128
@@ -30,8 +31,8 @@ static const char *getWifiStatus(wl_status_t status) {
 }
 
 #define dumpInfo(stream, field, val) \
-  stream->print(field ": ");         \
-  stream->println(val);
+  do { stream->print(field ": ");     \
+    stream->println(val); } while (0)
 
 static Stream* scanResponseStream = nullptr;
 
@@ -112,6 +113,42 @@ static void apinfo(Stream* stream, int argc, const char* argv[])
   dumpInfo(stream, "Station count", WiFi.softAPgetStationNum());
   dumpInfo(stream, "AP IP", WiFi.softAPIP());
   dumpInfo(stream, "AP MAC", WiFi.softAPmacAddress());
+
+  softap_config config;
+  if (wifi_softap_get_config(&config)) {
+    if (config.ssid_len)
+      stream->printf("SSID: %.*s\n", config.ssid_len, (char*)config.ssid);
+    else
+      dumpInfo(stream, "SSID", (char*)config.ssid);
+    dumpInfo(stream, "Password", (char*)config.password);
+    dumpInfo(stream, "Channel", config.channel);
+    dumpInfo(stream, "Auth mode", config.authmode);
+    dumpInfo(stream, "Hidden", config.ssid_hidden);
+    dumpInfo(stream, "Max connections", config.max_connection);
+    dumpInfo(stream, "Beacon interval", config.beacon_interval);
+  }
+}
+
+static void apdisconnect(Stream* stream, int argc, const char* argv[])
+{
+  if (argc == 1)
+    WiFi.softAPdisconnect();
+  else if (argc == 2)
+    WiFi.softAPdisconnect(atoi(argv[1]));
+}
+
+static void ap(Stream* stream, int argc, const char* argv[])
+{
+  if (argc < 2 || argc > 5)
+    Serial.println("Usage: ap <ssid> [password [channel [hidden]]]");
+  else if (argc == 2)
+    WiFi.softAP(argv[1]);
+  else if (argc == 3)
+    WiFi.softAP(argv[1], argv[2]);
+  else if (argc == 4)
+    WiFi.softAP(argv[1], argv[2], atoi(argv[3]));
+  else if (argc == 5)
+    WiFi.softAP(argv[1], argv[2], atoi(argv[3]), atoi(argv[4]));
 }
 
 static void restart(Stream* stream, int argc, const char* argv[])
@@ -209,7 +246,9 @@ Command cmds[] = {
   { "debug", debug, &cmds[10] },
   { "hostname", hostname, &cmds[11] },
   { "uptime", uptime, &cmds[12] },
-  { "scan", scan, nullptr },
+  { "scan", scan, &cmds[13], },
+  { "ap", ap, &cmds[14] },
+  { "apdisconnect", apdisconnect, nullptr }
 };
 
 ESP8266CMD::ESP8266CMD()
