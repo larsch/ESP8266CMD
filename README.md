@@ -9,10 +9,13 @@
 To enable the command handler on the default hardware serial point, simply create an instance of the `ESP8266CMD` class, call `begin()` and `run()` as often as you can:
 
 ``` c++
+#include <ESP8266CMD.h>
+
 ESP8266CMD cmd;
 
 void setup()
 {
+  Serial.begin(115200);
   cmd.begin();
 }
 
