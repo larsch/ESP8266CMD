@@ -28,24 +28,27 @@ void loop()
 Via serial console, input `help` to see a list of commands:
 
 ```
-Commands: help,sysinfo,stainfo,apinfo,restart,connect,disconnect,reconnect,diag,debug,hostname,uptime,scan
+Commands: help,hostname,uptime,sysinfo,restart,reset,scan,stainfo,connect,disconnect,reconnect,ap,apinfo,apdisconnect,diag,debug
 ```
 
 These commands are available:
 
 * `help` - show list of commands
+* `hostname [name]` - get/set hostname
+* `uptime` - show uptime
 * `sysinfo` - show device info
+* `restart` - restart ESP (`ESP.restart()`)
+* `reset` - reset ESP (`ESP.reset()`)
+* `scan` - scan & print available access points
 * `stainfo` - show WiFi station info
-* `apinfo` - show WiFi access point info
-* `restart` - restart CPU
 * `connect <ssid> [password]` - connect to WiFi
 * `disconnect` - disconnect from WiFi
 * `reconnect` - reconnect to WiFi
+* `ap <ssid> [password]` - configure AP
+* `apinfo` - show WiFi access point info
+* `apdisconnect [0|1]` - disconnect AP (optionally turn off radio)
 * `diag` - print WiFi diagnostics (`WiFi.printDiag()`)
 * `debug 0|1` - disable/enable debug output
-* `hostname [hostname]` - get/set hostname
-* `uptime` - print uptime
-* `scan` - scan & print available access points
 
 ### Other interfaces ###
 
