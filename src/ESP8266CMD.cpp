@@ -184,6 +184,34 @@ static void disconnect(Stream* stream, int argc, const char* argv[])
   WiFi.disconnect();
 }
 
+const char *modes[] = { "OFF", "STA", "AP", "STA+AP" };
+
+int dolookup(const char** args, int len, const char* str) {
+  for (int i = 0; i < len; ++i) {
+    if (strcmp(args[i], str) == 0)
+      return i;
+  }
+  return -1;
+}
+
+#define lookup(strs, str) dolookup((strs), sizeof(strs)/sizeof(strs[0]), str)
+
+static void mode(Stream* stream, int argc, const char* argv[])
+{
+  if (argc == 1) {
+    Serial.printf("Mode: %s\r\n", modes[WiFi.getMode()]);
+    return;
+  } else if (argc == 2) {
+    int mode = lookup(modes, argv[1]);
+    if (mode >= 0) {
+      WiFi.enableAP(!!(mode & WIFI_AP));
+      WiFi.enableSTA(!!(mode & WIFI_STA));
+      return;
+    }
+  }
+  Serial.println("Usage: mode [OFF|STA|AP|STA+AP]");
+}
+
 static void scan(Stream* stream, int argc, const char* argv[])
 {
   if (scanResponseStream)
@@ -246,14 +274,15 @@ static Command cmds[] = {
   { "restart", restart, &cmds[5] },
   { "reset", reset, &cmds[6] },
   { "scan", scan, &cmds[7] },
-  { "stainfo", stainfo, &cmds[8] },
-  { "connect", connect, &cmds[9] },
-  { "disconnect", disconnect, &cmds[10] },
-  { "reconnect", reconnect, &cmds[11] },
-  { "ap", ap, &cmds[12] },
-  { "apinfo", apinfo, &cmds[13] },
-  { "apdisconnect", apdisconnect, &cmds[14] },
-  { "diag", diag, &cmds[15] },
+  { "mode", mode, &cmds[8] },
+  { "stainfo", stainfo, &cmds[9] },
+  { "connect", connect, &cmds[10] },
+  { "disconnect", disconnect, &cmds[11] },
+  { "reconnect", reconnect, &cmds[12] },
+  { "ap", ap, &cmds[13] },
+  { "apinfo", apinfo, &cmds[14] },
+  { "apdisconnect", apdisconnect, &cmds[15] },
+  { "diag", diag, &cmds[16] },
   { "debug", debug, nullptr }
 };
 
