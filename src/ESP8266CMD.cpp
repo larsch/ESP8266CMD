@@ -39,10 +39,10 @@ static Stream* scanResponseStream = nullptr;
 void printScanResponse(int networksFound)
 {
   Stream* stream = scanResponseStream;
-  stream->printf("%d network(s) found\n", networksFound);
+  stream->printf("%d network(s) found\r\n", networksFound);
   for (int i = 0; i < networksFound; i++)
   {
-    stream->printf("%d: %s, Ch:%d (%ddBm) %s\n", i + 1, WiFi.SSID(i).c_str(), WiFi.channel(i), WiFi.RSSI(i), WiFi.encryptionType(i) == ENC_TYPE_NONE ? "open" : "");
+    stream->printf("%d: %s, Ch:%d (%ddBm) %s\r\n", i + 1, WiFi.SSID(i).c_str(), WiFi.channel(i), WiFi.RSSI(i), WiFi.encryptionType(i) == ENC_TYPE_NONE ? "open" : "");
   }
   scanResponseStream = nullptr;
 }
@@ -117,7 +117,7 @@ static void apinfo(Stream* stream, int argc, const char* argv[])
   softap_config config;
   if (wifi_softap_get_config(&config)) {
     if (config.ssid_len)
-      stream->printf("SSID: %.*s\n", config.ssid_len, (char*)config.ssid);
+      stream->printf("SSID: %.*s\r\n", config.ssid_len, (char*)config.ssid);
     else
       dumpInfo(stream, "SSID", (char*)config.ssid);
     dumpInfo(stream, "Password", (char*)config.password);
