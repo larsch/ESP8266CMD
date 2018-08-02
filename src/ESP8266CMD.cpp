@@ -156,6 +156,11 @@ static void restart(Stream* stream, int argc, const char* argv[])
   ESP.restart();
 }
 
+static void reset(Stream* stream, int argc, const char* argv[])
+{
+  ESP.reset();
+}
+
 static void connect(Stream* stream, int argc, const char* argv[])
 {
   if (argc == 2) {
@@ -239,15 +244,16 @@ static Command cmds[] = {
   { "uptime", uptime, &cmds[3] },
   { "sysinfo", sysinfo, &cmds[4] },
   { "restart", restart, &cmds[5] },
-  { "scan", scan, &cmds[6] },
-  { "stainfo", stainfo, &cmds[7] },
-  { "connect", connect, &cmds[8] },
-  { "disconnect", disconnect, &cmds[9] },
-  { "reconnect", reconnect, &cmds[10] },
-  { "ap", ap, &cmds[11] },
-  { "apinfo", apinfo, &cmds[12] },
-  { "apdisconnect", apdisconnect, &cmds[13] },
-  { "diag", diag, &cmds[14] },
+  { "reset", reset, &cmds[6] },
+  { "scan", scan, &cmds[7] },
+  { "stainfo", stainfo, &cmds[8] },
+  { "connect", connect, &cmds[9] },
+  { "disconnect", disconnect, &cmds[10] },
+  { "reconnect", reconnect, &cmds[11] },
+  { "ap", ap, &cmds[12] },
+  { "apinfo", apinfo, &cmds[13] },
+  { "apdisconnect", apdisconnect, &cmds[14] },
+  { "diag", diag, &cmds[15] },
   { "debug", debug, nullptr }
 };
 
