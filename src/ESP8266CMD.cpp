@@ -328,12 +328,20 @@ void ESP8266CMD::parseCommand(char* command)
   const char* argv[MAX_ARGV];
   int argi = 0;
   while (*command && argi < MAX_ARGV) {
+    /* skip whitespace */
     while (*command == ' ')
       *command++ = 0;
+    char end = ' ';
+    if (*command == '"') {
+      end = '"';
+      *command++ = 0; /* erase quote */
+    }
     if (*command)
       argv[argi++] = command;
-    while (*command && *command != ' ')
+    while (*command && *command != end)
       command++; /* skip word */
+    if (end == '"')
+      *command++ = 0; /* erase quote */
   }
   handleCommand(argi, argv);
 }
