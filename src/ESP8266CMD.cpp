@@ -140,7 +140,7 @@ static void apdisconnect(Stream* stream, int argc, const char* argv[])
 static void ap(Stream* stream, int argc, const char* argv[])
 {
   if (argc < 2 || argc > 5)
-    Serial.println("Usage: ap <ssid> [password [channel [hidden]]]");
+    stream->println("Usage: ap <ssid> [password [channel [hidden]]]");
   else if (argc == 2)
     WiFi.softAP(argv[1]);
   else if (argc == 3)
@@ -199,7 +199,7 @@ int dolookup(const char** args, int len, const char* str) {
 static void mode(Stream* stream, int argc, const char* argv[])
 {
   if (argc == 1) {
-    Serial.printf("Mode: %s\r\n", modes[WiFi.getMode()]);
+    stream->printf("Mode: %s\r\n", modes[WiFi.getMode()]);
     return;
   } else if (argc == 2) {
     int mode = lookup(modes, argv[1]);
@@ -209,7 +209,7 @@ static void mode(Stream* stream, int argc, const char* argv[])
       return;
     }
   }
-  Serial.println("Usage: mode [OFF|STA|AP|STA+AP]");
+  stream->println("Usage: mode [OFF|STA|AP|STA+AP]");
 }
 
 static void scan(Stream* stream, int argc, const char* argv[])
@@ -249,21 +249,21 @@ static void uptime(Stream* stream, int argc, const char* argv[])
   uint32_t days = seconds / 86400; seconds = seconds % 86400;
   uint32_t hours = seconds / 3600; seconds = seconds % 3600;
   uint32_t minutes = seconds / 60; seconds = seconds % 60;
-  Serial.print("Uptime: ");
+  stream->print("Uptime: ");
   if (days) {
-    Serial.print(days);
-    Serial.print('d');
+    stream->print(days);
+    stream->print('d');
   }
   if (days||hours) {
-    Serial.print(hours);
-    Serial.print('h');
+    stream->print(hours);
+    stream->print('h');
   }
   if (days||hours||minutes) {
-    Serial.print(minutes);
-    Serial.print('m');
+    stream->print(minutes);
+    stream->print('m');
   }
-  Serial.print(seconds);
-  Serial.println('s');
+  stream->print(seconds);
+  stream->println('s');
 }
 
 static Command cmds[] = {
