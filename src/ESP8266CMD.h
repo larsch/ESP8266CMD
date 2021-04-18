@@ -14,7 +14,7 @@ public:
   ESP8266CMD();
   ~ESP8266CMD();
   void addCommand(const char* command, handler_t handler);
-  void begin(Stream& stream = Serial);
+  void begin(Stream& stream = Serial, const char* password=nullptr);
   void run();
   
 private:
@@ -22,6 +22,7 @@ private:
   int length;
   Stream* stream;
   struct Command* commands;
+  const char* password;
 
   void parseCommand(char* command);
   void handleCommand(int argc, const char *argv[]);

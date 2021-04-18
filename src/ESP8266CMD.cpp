@@ -303,9 +303,10 @@ ESP8266CMD::~ESP8266CMD()
   delete[] buffer;
 }
 
-void ESP8266CMD::begin(Stream& stream)
+void ESP8266CMD::begin(Stream& stream, const char* password)
 {
   this->stream = &stream;
+  this->password = password;
 }
 
 void ESP8266CMD::run()
@@ -350,6 +351,20 @@ void ESP8266CMD::handleCommand(int argc, const char *argv[])
 {
   if (argc == 0) {
     stream->print("No command given");
+    return;
+  }
+
+  if (this->password) {
+    if (strcmp(argv[0], "auth") == 0 && argc == 2) {
+      if (strcmp(argv[1], password) == 0) {
+        stream->println("Login OK");
+        this->password = nullptr;
+      } else {
+        stream->println("Incorrect password");
+      }
+    } else {
+      stream->println("Login required (auth <password>)");
+    }
     return;
   }
 
