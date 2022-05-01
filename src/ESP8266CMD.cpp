@@ -5,6 +5,7 @@
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
 #include <user_interface.h>
+#include <time.h>
 
 #define MAX_ARGV 16
 #define COMMAND_LENGTH 128
@@ -31,18 +32,20 @@ static const char *getWifiStatus(wl_status_t status) {
 }
 
 #define dumpInfo(stream, field, val) \
-  do { stream->print(field ": ");     \
-    stream->println(val); } while (0)
+  do { stream.print(field ": ");     \
+    stream.println(val); } while (0)
 
 static Stream* scanResponseStream = nullptr;
 
 void printScanResponse(int networksFound)
 {
-  Stream* stream = scanResponseStream;
-  stream->printf("%d network(s) found\r\n", networksFound);
+  if (scanResponseStream == nullptr)
+    return;
+  Stream& stream = *scanResponseStream;
+  stream.printf("%d network(s) found\r\n", networksFound);
   for (int i = 0; i < networksFound; i++)
   {
-    stream->printf("%d: %s, Ch:%d (%ddBm) %s\r\n", i + 1, WiFi.SSID(i).c_str(), WiFi.channel(i), WiFi.RSSI(i), WiFi.encryptionType(i) == ENC_TYPE_NONE ? "open" : "");
+    stream.printf("%d: %s, Ch:%d (%ddBm) %s\r\n", i + 1, WiFi.SSID(i).c_str(), WiFi.channel(i), WiFi.RSSI(i), WiFi.encryptionType(i) == ENC_TYPE_NONE ? "open" : "");
   }
   scanResponseStream = nullptr;
 }
@@ -55,21 +58,21 @@ struct Command {
 
 static Command* currentCommands = nullptr;
 
-static void help(Stream* stream, int argc, const char* argv[])
+static void help(Stream& stream, int argc, const char* argv[])
 {
-  stream->print("Commands: ");
+  stream.print("Commands: ");
   Command* cmd = currentCommands;
-  stream->print(cmd->cmd);
+  stream.print(cmd->cmd);
   cmd = cmd->next;
   while (cmd) {
-    stream->print(',');
-    stream->print(cmd->cmd);
+    stream.print(',');
+    stream.print(cmd->cmd);
     cmd = cmd->next;
   }
-  stream->println("");
+  stream.println("");
 }
 
-static void sysinfo(Stream* stream, int argc, const char* argv[])
+static void sysinfo(Stream& stream, int argc, const char* argv[])
 {
   dumpInfo(stream, "Chip ID", ESP.getChipId());
   dumpInfo(stream, "Reset reason", ESP.getResetReason());
@@ -87,8 +90,9 @@ static void sysinfo(Stream* stream, int argc, const char* argv[])
   dumpInfo(stream, "Cycle count", ESP.getCycleCount());
 }
 
-static void stainfo(Stream* stream, int argc, const char* argv[])
+static void stainfo(Stream& stream, int argc, const char* argv[])
 {
+  dumpInfo(stream, "Persistent", WiFi.getPersistent());
   dumpInfo(stream, "Is connected", WiFi.isConnected());
   dumpInfo(stream, "Auto connect", WiFi.getAutoConnect());
   dumpInfo(stream, "MAC address", WiFi.macAddress());
@@ -108,16 +112,17 @@ static void stainfo(Stream* stream, int argc, const char* argv[])
   dumpInfo(stream, "PSK", WiFi.psk());
 }
 
-static void apinfo(Stream* stream, int argc, const char* argv[])
+static void apinfo(Stream& stream, int argc, const char* argv[])
 {
   dumpInfo(stream, "Station count", WiFi.softAPgetStationNum());
   dumpInfo(stream, "AP IP", WiFi.softAPIP());
   dumpInfo(stream, "AP MAC", WiFi.softAPmacAddress());
 
+
   softap_config config;
   if (wifi_softap_get_config(&config)) {
     if (config.ssid_len)
-      stream->printf("SSID: %.*s\r\n", config.ssid_len, (char*)config.ssid);
+      stream.printf("SSID: %.*s\r\n", config.ssid_len, (char*)config.ssid);
     else
       dumpInfo(stream, "SSID", (char*)config.ssid);
     dumpInfo(stream, "Password", (char*)config.password);
@@ -127,9 +132,19 @@ static void apinfo(Stream* stream, int argc, const char* argv[])
     dumpInfo(stream, "Max connections", config.max_connection);
     dumpInfo(stream, "Beacon interval", config.beacon_interval);
   }
+
+  auto station = wifi_softap_get_station_info();
+  while (station) {
+    uint8_t* mac = station->bssid;
+    stream.printf("Station MAC: %02x:%02x:%02x:%02x:%02x:%02x\n",
+      mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    dumpInfo(stream, "Station IP", IPAddress(station->ip));
+    station = STAILQ_NEXT(station, next);
+  }
+  wifi_softap_free_station_info();
 }
 
-static void apdisconnect(Stream* stream, int argc, const char* argv[])
+static void apdisconnect(Stream& stream, int argc, const char* argv[])
 {
   if (argc == 1)
     WiFi.softAPdisconnect();
@@ -137,10 +152,10 @@ static void apdisconnect(Stream* stream, int argc, const char* argv[])
     WiFi.softAPdisconnect(atoi(argv[1]));
 }
 
-static void ap(Stream* stream, int argc, const char* argv[])
+static void ap(Stream& stream, int argc, const char* argv[])
 {
   if (argc < 2 || argc > 5)
-    stream->println("Usage: ap <ssid> [password [channel [hidden]]]");
+    stream.println("Usage: ap <ssid> [password [channel [hidden]]]");
   else if (argc == 2)
     WiFi.softAP(argv[1]);
   else if (argc == 3)
@@ -151,37 +166,42 @@ static void ap(Stream* stream, int argc, const char* argv[])
     WiFi.softAP(argv[1], argv[2], atoi(argv[3]), atoi(argv[4]));
 }
 
-static void restart(Stream* stream, int argc, const char* argv[])
+static void restart(Stream& stream, int argc, const char* argv[])
 {
   ESP.restart();
 }
 
-static void reset(Stream* stream, int argc, const char* argv[])
+static void reset(Stream& stream, int argc, const char* argv[])
 {
   ESP.reset();
 }
 
-static void connect(Stream* stream, int argc, const char* argv[])
+static void connect(Stream& stream, int argc, const char* argv[])
 {
   if (argc == 2) {
     WiFi.begin(argv[1]);
-    stream->println("OK");
+    stream.println("OK");
   } else if (argc == 3) {
     WiFi.begin(argv[1], argv[2]);
-    stream->println("OK");
+    stream.println("OK");
   } else {
-    stream->println("Usage: connect <ssid> [password]");
+    stream.println("Usage: connect <ssid> [password]");
   }
 }
 
-static void reconnect(Stream* stream, int argc, const char* argv[])
+static void reconnect(Stream& stream, int argc, const char* argv[])
 {
   WiFi.reconnect();
 }
 
-static void disconnect(Stream* stream, int argc, const char* argv[])
+static void disconnect(Stream& stream, int argc, const char* argv[])
 {
-  WiFi.disconnect();
+  if (argc == 1)
+    WiFi.disconnect();
+  else if (argc == 2)
+    WiFi.disconnect(!!atoi(argv[1]));
+  else
+    Serial.println("Usage: disconnect [0|1]");
 }
 
 const char *modes[] = { "OFF", "STA", "AP", "STA+AP" };
@@ -196,10 +216,10 @@ int dolookup(const char** args, int len, const char* str) {
 
 #define lookup(strs, str) dolookup((strs), sizeof(strs)/sizeof(strs[0]), str)
 
-static void mode(Stream* stream, int argc, const char* argv[])
+static void mode(Stream& stream, int argc, const char* argv[])
 {
   if (argc == 1) {
-    stream->printf("Mode: %s\r\n", modes[WiFi.getMode()]);
+    stream.printf("Mode: %s\r\n", modes[WiFi.getMode()]);
     return;
   } else if (argc == 2) {
     int mode = lookup(modes, argv[1]);
@@ -209,61 +229,112 @@ static void mode(Stream* stream, int argc, const char* argv[])
       return;
     }
   }
-  stream->println("Usage: mode [OFF|STA|AP|STA+AP]");
+  stream.println("Usage: mode [OFF|STA|AP|STA+AP]");
 }
 
-static void scan(Stream* stream, int argc, const char* argv[])
+static void scan(Stream& stream, int argc, const char* argv[])
 {
   if (scanResponseStream)
     return;
-  scanResponseStream = stream;
+  scanResponseStream = &stream;
   WiFi.scanNetworksAsync(printScanResponse);
 }
 
-static void diag(Stream* stream, int argc, const char* argv[])
+static void diag(Stream& stream, int argc, const char* argv[])
 {
-  WiFi.printDiag(*stream);
+  WiFi.printDiag(stream);
 }
 
-static void debug(Stream* stream, int argc, const char* argv[])
+static void debug(Stream& stream, int argc, const char* argv[])
 {
   if (argc == 2)
     Serial.setDebugOutput((bool)String(argv[1]).toInt());
   else
-    stream->println("Usage: debug 0|1");
+    stream.println("Usage: debug 0|1");
 }
 
-static void hostname(Stream* stream, int argc, const char* argv[])
+static void hostname(Stream& stream, int argc, const char* argv[])
 {
   if (argc == 2)
     WiFi.hostname(argv[1]);
   else {
-    stream->print("Hostname: ");
-    stream->println(WiFi.hostname());
+    stream.print("Hostname: ");
+    stream.println(WiFi.hostname());
   }
 }
 
-static void uptime(Stream* stream, int argc, const char* argv[])
+static void uptime(Stream& stream, int argc, const char* argv[])
 {
   uint32_t seconds = millis() / 1000;
   uint32_t days = seconds / 86400; seconds = seconds % 86400;
   uint32_t hours = seconds / 3600; seconds = seconds % 3600;
   uint32_t minutes = seconds / 60; seconds = seconds % 60;
-  stream->print("Uptime: ");
+  stream.print("Uptime: ");
   if (days) {
-    stream->print(days);
-    stream->print('d');
+    stream.print(days);
+    stream.print('d');
   }
   if (days||hours) {
-    stream->print(hours);
-    stream->print('h');
+    stream.print(hours);
+    stream.print('h');
   }
   if (days||hours||minutes) {
-    stream->print(minutes);
-    stream->print('m');
+    stream.print(minutes);
+    stream.print('m');
   }
-  stream->print(seconds);
-  stream->println('s');
+  stream.print(seconds);
+  stream.println('s');
+}
+
+static void date(Stream& stream, int argc, const char* argv[])
+{
+    time_t now;
+    time(&now);
+    tm tm;
+    localtime_r(&now, &tm);
+    char timeString[20];
+    strftime(timeString, sizeof(timeString), "%Y-%m-%d %H:%M:%S", &tm);
+    stream.println(timeString);
+}
+
+static void configtime(Stream& stream, int argc, const char* argv[])
+{
+  if (argc < 3 || argc > 5) {
+    Serial.println("Usage: configtime <TIMEZONE> <server1> [<server2> [<server3>]]");
+    return;
+  }
+  const char* tz = argv[1];
+  const char* server1 = argv[2];
+  const char* server2 = argc > 3 ? argv[3] : nullptr;
+  const char* server3 = argc > 4 ? argv[4] : nullptr;
+  configTime(tz, server1, server2, server3);
+}
+
+static void persist(Stream&, int argc, const char* argv[])
+{
+  if (argc == 2) {
+    WiFi.persistent(!!atoi(argv[1]));
+  } else {
+    Serial.println(WiFi.getPersistent());
+  }
+}
+
+static void autoconnect(Stream&, int argc, const char* argv[])
+{
+  if (argc == 2) {
+    WiFi.setAutoConnect(!!atoi(argv[1]));
+  } else {
+    Serial.println(WiFi.getAutoConnect());
+  }
+}
+
+static void autoreconnect(Stream&, int argc, const char* argv[])
+{
+  if (argc == 2) {
+    WiFi.setAutoReconnect(!!atoi(argv[1]));
+  } else {
+    Serial.println(WiFi.getAutoReconnect());
+  }
 }
 
 static Command cmds[] = {
@@ -283,13 +354,21 @@ static Command cmds[] = {
   { "apinfo", apinfo, &cmds[14] },
   { "apdisconnect", apdisconnect, &cmds[15] },
   { "diag", diag, &cmds[16] },
+  { "date", date, &cmds[17] },
+  { "configtime", configtime, &cmds[18] },
+  { "persist", persist, &cmds[19] },
+  { "autoconnect", autoconnect, &cmds[20] },
+  { "autoreconnect", autoreconnect, &cmds[21] },
   { "debug", debug, nullptr }
 };
+
+struct Command* ESP8266CMD::commands = cmds;
 
 ESP8266CMD::ESP8266CMD()
   : buffer(new char[COMMAND_LENGTH]),
     length(0),
-    commands(cmds)
+    password(nullptr),
+    prompt(nullptr)
 {
 }
 
@@ -309,6 +388,12 @@ void ESP8266CMD::begin(Stream& stream, const char* password)
   this->password = password;
 }
 
+void ESP8266CMD::setPrompt(const char* prompt)
+{
+  this->prompt = prompt;
+}
+
+
 void ESP8266CMD::run()
 {
   while (stream->available() > 0) {
@@ -326,6 +411,20 @@ void ESP8266CMD::run()
 
 void ESP8266CMD::parseCommand(char* command)
 {
+  // process backspace
+  char* iter = command;
+  char* out = command;
+  while (*iter) {
+    if (*iter == 8) // backspace
+    {
+      if (out > command)
+        --out;
+      ++iter;
+    } else {
+      *out++ = *iter++;
+    }
+  }
+  *out = 0;
   const char* argv[MAX_ARGV];
   int argi = 0;
   while (*command && argi < MAX_ARGV) {
@@ -345,6 +444,8 @@ void ESP8266CMD::parseCommand(char* command)
       *command++ = 0; /* erase quote */
   }
   handleCommand(argi, argv);
+  if (this->prompt)
+    Serial.print(this->prompt);
 }
 
 void ESP8266CMD::handleCommand(int argc, const char *argv[])
@@ -372,7 +473,7 @@ void ESP8266CMD::handleCommand(int argc, const char *argv[])
   while (cmd) {
     if (strcmp(cmd->cmd, argv[0]) == 0) {
       currentCommands = commands;
-      cmd->handler(stream, argc, argv);
+      cmd->handler(*stream, argc, argv);
       stream->println("OK");
       return;
     }

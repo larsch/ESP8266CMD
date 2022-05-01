@@ -6,14 +6,18 @@
 
 #include <Arduino.h>
 
-typedef void (*handler_t)(Stream* stream, int argc, const char *argv[]);
+// typedef void (*handler_t)(Stream* stream, int argc, const char *argv[]);
+
+typedef std::function<void(Stream&, int, const char**)> handler_t;
 
 class ESP8266CMD
 {
 public:
   ESP8266CMD();
   ~ESP8266CMD();
-  void addCommand(const char* command, handler_t handler);
+  
+  static void addCommand(const char* command, handler_t handler);
+  void setPrompt(const char* prompt);
   void begin(Stream& stream = Serial, const char* password=nullptr);
   void run();
   
@@ -21,8 +25,9 @@ private:
   char* buffer;
   int length;
   Stream* stream;
-  struct Command* commands;
+  static struct Command* commands;
   const char* password;
+  const char* prompt;
 
   void parseCommand(char* command);
   void handleCommand(int argc, const char *argv[]);
